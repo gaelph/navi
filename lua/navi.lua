@@ -239,7 +239,10 @@ function M.render(state, reset_cursor)
 	state.rendering = true
 	local buf = state.buf
 	local win = state.win or 0
-	local pos = reset_cursor and { 1, 0 } or vim.api.nvim_win_get_cursor(win)
+	local pos = { 1, 0 }
+	if not reset_cursor then
+		pcall(vim.api.nvim_win_get_cursor, win)
+	end
 
 	clear(buf)
 
@@ -265,7 +268,7 @@ function M.render(state, reset_cursor)
 		end
 	end
 
-	vim.api.nvim_win_set_cursor(win, pos)
+	pcall(vim.api.nvim_win_set_cursor, win, pos)
 	state.rendering = false
 end
 
