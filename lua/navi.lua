@@ -1,6 +1,7 @@
 --- @alias Callback function
 --- @alias Number function
-local hlns = vim.api.nvim_create_namespace("navi:hl")
+local hlns = vim.api.nvim_create_namespace "navi:hl"
+vim.cmd "let g:loaded_netrwPlugin = 'disable'"
 
 local M = {
 	repo = {},
@@ -80,18 +81,27 @@ vim.api.nvim_create_autocmd("FileType", {
 	end,
 })
 
---[[ vim.api.nvim_create_autocmd({ "BufEnter", "BufWinEnter" }, { ]]
---[[ 	pattern = "navi:/*", ]]
---[[ 	group = group, ]]
---[[ 	callback = function(arg) ]]
---[[ 		local buf = arg.buf ]]
---[[ 		local state = M.repo[buf] ]]
---[[]]
---[[ 		if state.last_pos ~= nil then ]]
---[[ 			vim.api.nvim_win_set_cursor(state.win, state.last_pos) ]]
---[[ 		end ]]
---[[ 	end, ]]
---[[ }) ]]
+vim.api.nvim_create_autocmd("VimEnter", {
+	pattern = "*",
+	group = group,
+	callback = function()
+		vim.cmd "au VimEnter * sil! au! FileExplorer *"
+	end,
+})
+
+vim.api.nvim_create_autocmd("BufEnter", {
+	pattern = "*",
+	group = group,
+	callback = function(args)
+		local path = args.match
+		if path and vim.fn.isdirectory(path) == 1 then
+			local ok, err = pcall(vim.cmd, string.format("Navi %s", path))
+			if not ok then
+				print(err)
+			end
+		end
+	end,
+})
 
 vim.api.nvim_create_autocmd("CursorMoved", {
 	pattern = "navi:/*",
@@ -144,12 +154,34 @@ vim.api.nvim_create_user_command("Navi", function(arg)
 	local path = arg.args
 	if path == "" then
 		---@diagnostic disable-next-line
-		path = vim.fs.dirname(vim.fn.expand("%")) .. "/"
+		path = vim.fs.dirname(vim.fn.expand "%:p") .. "/"
 	end
 
-	path = vim.fn.simplify(vim.fn.getcwd() .. "/" .. path)
-	start_browse(path, "vsplit")
-end, { force = true })
+	path = vim.fn.simplify(path)
+	start_browse(path, "self")
+end, { force = true, nargs = "?" })
+
+vim.api.nvim_create_user_command("SNavi", function(arg)
+	local path = arg.args
+	if path == "" then
+		---@diagnostic disable-next-line
+		path = vim.fs.dirname(vim.fn.expand "%:p") .. "/"
+	end
+
+	path = vim.fn.simplify(path)
+	start_browse(path, "split")
+end, { force = true, nargs = "?" })
+
+vim.api.nvim_create_user_command("VNavi", function(arg)
+	local path = arg.args
+	if path == "" then
+		---@diagnostic disable-next-line
+		path = vim.fs.dirname(vim.fn.expand "%:p") .. "/"
+	end
+
+	path = vim.fn.simplify(path)
+	start_browse(path, "split")
+end, { force = true, nargs = "?" })
 
 local function highlight(state)
 	for line, node in ipairs(state.files) do
