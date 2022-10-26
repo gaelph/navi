@@ -30,6 +30,13 @@ function M.yank_set_register(register)
 end
 
 function M.add_yank(line, path, register)
+	if M.yanks[line] ~= nil then
+		local mode = M.yanks[line].mode
+		M.yanks[line] = nil
+		if mode == M.mode then
+			return
+		end
+	end
 	print("add yank of line", line, ":", path, "to register", register)
 	local buffer = vim.api.nvim_get_current_buf()
 
@@ -777,8 +784,8 @@ function M.attach_listeners(state)
 		vim.api.nvim_feedkeys(keys, "x", true)
 	end, { buffer = 0 })
 
-	vim.keymap.set("n", "xx", function()
-		M.set_mode("move")
+	vim.keymap.set("n", "yx", function()
+		M.set_mode "move"
 		local pos = vim.api.nvim_win_get_cursor(0)
 		local lines = vim.api.nvim_buf_get_lines(0, pos[1] - 1, pos[1], false)
 		local line = lines[1]
@@ -816,34 +823,6 @@ function M.attach_listeners(state)
 			M.render(state)
 			State.set_mode(state, "rename")
 		end, 50)
-	end, { buffer = 0 })
-
-	vim.keymap.set("n", "<Tab><Tab>", function()
-		local count = vim.v.count
-		local pos = vim.api.nvim_win_get_cursor(0)
-		local line = pos[1] - 1
-
-		for i = line, line + count do
-			if M.yanks[i] then
-				M.yanks[i] = nil
-			end
-		end
-
-		M.render(state)
-	end, { buffer = 0 })
-
-	vim.keymap.set("x", "<Tab>", function()
-		local line_start, _, line_end, _ = get_visual_selection_range()
-
-		for i = line_start - 1, line_end - 1 do
-			if M.yanks[i] then
-				M.yanks[i] = nil
-			end
-		end
-
-		M.render(state)
-		local keys = vim.api.nvim_replace_termcodes("<ESC>", true, false, true)--[[@as string]]
-		vim.api.nvim_feedkeys(keys, "x", true)
 	end, { buffer = 0 })
 
 	vim.api.nvim_create_autocmd("InsertEnter", {
