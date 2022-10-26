@@ -1,7 +1,7 @@
 --- @alias Callback function
 --- @alias Number function
-local hlns = vim.api.nvim_create_namespace "navi:hl"
-vim.cmd "let g:loaded_netrwPlugin = 'disable'"
+local hlns = vim.api.nvim_create_namespace("navi:hl")
+vim.cmd("let g:loaded_netrwPlugin = 'disable'")
 
 local M = {
 	repo = {},
@@ -92,7 +92,7 @@ vim.api.nvim_create_autocmd("VimEnter", {
 	pattern = "*",
 	group = group,
 	callback = function()
-		vim.cmd "au VimEnter * sil! au! FileExplorer *"
+		vim.cmd("au VimEnter * sil! au! FileExplorer *")
 	end,
 })
 
@@ -161,7 +161,7 @@ vim.api.nvim_create_user_command("Navi", function(arg)
 	local path = arg.args
 	if path == "" then
 		---@diagnostic disable-next-line
-		path = vim.fs.dirname(vim.fn.expand "%:p") .. "/"
+		path = vim.fs.dirname(vim.fn.expand("%:p")) .. "/"
 	end
 
 	path = vim.fn.simplify(path)
@@ -172,7 +172,7 @@ vim.api.nvim_create_user_command("SNavi", function(arg)
 	local path = arg.args
 	if path == "" then
 		---@diagnostic disable-next-line
-		path = vim.fs.dirname(vim.fn.expand "%:p") .. "/"
+		path = vim.fs.dirname(vim.fn.expand("%:p")) .. "/"
 	end
 
 	path = vim.fn.simplify(path)
@@ -183,7 +183,7 @@ vim.api.nvim_create_user_command("VNavi", function(arg)
 	local path = arg.args
 	if path == "" then
 		---@diagnostic disable-next-line
-		path = vim.fs.dirname(vim.fn.expand "%:p") .. "/"
+		path = vim.fs.dirname(vim.fn.expand("%:p")) .. "/"
 	end
 
 	path = vim.fn.simplify(path)
@@ -383,7 +383,6 @@ function M.set_keymaps(state)
 	vim.keymap.set("n", "-", function()
 		local c = string.sub(state.cwd, 1, -2)
 		local parent = vim.fs.dirname(c) .. "/"
-		print("[LS] parent: " .. vim.inspect(parent))
 		vim.cmd("m'")
 		start_browse(parent, "self")
 	end, { buffer = buf })
@@ -788,7 +787,7 @@ function M.attach_listeners(state)
 	end, { buffer = 0 })
 
 	vim.keymap.set("n", "yx", function()
-		M.set_mode "move"
+		M.set_mode("move")
 		local pos = vim.api.nvim_win_get_cursor(0)
 		local lines = vim.api.nvim_buf_get_lines(0, pos[1] - 1, pos[1], false)
 		local line = lines[1]
