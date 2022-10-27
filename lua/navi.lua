@@ -117,8 +117,10 @@ vim.api.nvim_create_autocmd("CursorMoved", {
 		local buf = arg.buf
 		local state = M.repo[buf]
 
-		local pos = vim.api.nvim_win_get_cursor(0)
-		state.last_pos = pos
+		if state then
+			local pos = vim.api.nvim_win_get_cursor(0)
+			state.last_pos = pos
+		end
 	end,
 })
 
@@ -159,18 +161,19 @@ end
 
 vim.api.nvim_create_user_command("Navi", function(arg)
 	local path = arg.args
-	if path == "" then
+	if path == "" or path == "." or path == "./" then
 		---@diagnostic disable-next-line
 		path = vim.fs.dirname(vim.fn.expand("%:p")) .. "/"
 	end
 
 	path = vim.fn.simplify(path)
+	print("[LS] path: " .. vim.inspect(path))
 	start_browse(path, "self")
 end, { force = true, nargs = "?" })
 
 vim.api.nvim_create_user_command("SNavi", function(arg)
 	local path = arg.args
-	if path == "" then
+	if path == "" or path == "." or path == "./" then
 		---@diagnostic disable-next-line
 		path = vim.fs.dirname(vim.fn.expand("%:p")) .. "/"
 	end
@@ -181,13 +184,13 @@ end, { force = true, nargs = "?" })
 
 vim.api.nvim_create_user_command("VNavi", function(arg)
 	local path = arg.args
-	if path == "" then
+	if path == "" or path == "." or path == "./" then
 		---@diagnostic disable-next-line
 		path = vim.fs.dirname(vim.fn.expand("%:p")) .. "/"
 	end
 
 	path = vim.fn.simplify(path)
-	start_browse(path, "split")
+	start_browse(path, "vsplit")
 end, { force = true, nargs = "?" })
 
 local function highlight(state)
@@ -304,14 +307,44 @@ function State:set_mode(mode)
 	self.mode = mode
 end
 
+local function dir(path)
+	local i, t, popen = 0, {}, io.popen
+	local pfile = popen('ls -a "' .. path .. '"')
+	if pfile == nil then
+		vim.notify("Error reading " .. path)
+		return t
+	end
+
+	for filename in pfile:lines() do
+		i = i + 1
+		local fullpath = path .. filename
+		local type = vim.fn.isdirectory(fullpath) == 1 and "directory" or "file"
+
+		t[i] = {
+			name = filename,
+			type = type,
+		}
+	end
+	pfile:close()
+	local n = 0
+
+	return function()
+		n = n + 1
+		local f = t[n]
+		if f then
+			return f.name, f.type
+		end
+	end
+end
+
 function M.readdir(path)
 	local files = {
-		{ name = "..", type = "directory" },
-		{ name = ".", type = "directory" },
+		-- { name = "..", type = "directory" },
+		-- { name = ".", type = "directory" },
 	}
 
 	local success, error = pcall(function()
-		for file, type in vim.fs.dir(path) do
+		for file, type in dir(path) do
 			table.insert(files, { name = file, type = type })
 		end
 
@@ -327,7 +360,8 @@ function M.readdir(path)
 	end)
 
 	if not success then
-		print(vim.inspect(error))
+		print(error)
+		print(string.format("fs.dir failed with path '%s'", path))
 		return {}
 	end
 
@@ -381,7 +415,7 @@ function M.set_keymaps(state)
 	local buf = state.buf
 
 	vim.keymap.set("n", "-", function()
-		local c = string.sub(state.cwd, 1, -2)
+		local c = vim.fn.expand("%:p"):gsub("navi:/", "")
 		local parent = vim.fs.dirname(c) .. "/"
 		vim.cmd("m'")
 		start_browse(parent, "self")
