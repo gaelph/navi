@@ -125,6 +125,10 @@ vim.api.nvim_create_autocmd("CursorMoved", {
 })
 
 local function get_name(path)
+	if not vim.endswith(path, "/") then
+		path = path .. "/"
+	end
+
 	path = string.sub(path, 1, -2)
 	return string.format("navi:/%s", path)
 end
@@ -161,13 +165,18 @@ end
 
 vim.api.nvim_create_user_command("Navi", function(arg)
 	local path = arg.args
+	if path == "" or path == nil then
+		path = vim.fs.dirname(vim.fn.expand("%:p")) .. "/"
+	end
 	if path == "" or path == "." or path == "./" then
 		---@diagnostic disable-next-line
-		path = vim.fs.dirname(vim.fn.expand("%:p")) .. "/"
+		path = vim.fn.getcwd() .. "/"
 	end
 
 	path = vim.fn.simplify(path)
-	print("[LS] path: " .. vim.inspect(path))
+	if not vim.endswith(path, "/") then
+		path = path .. "/"
+	end
 	start_browse(path, "self")
 end, { force = true, nargs = "?" })
 
@@ -175,10 +184,13 @@ vim.api.nvim_create_user_command("SNavi", function(arg)
 	local path = arg.args
 	if path == "" or path == "." or path == "./" then
 		---@diagnostic disable-next-line
-		path = vim.fs.dirname(vim.fn.expand("%:p")) .. "/"
+		path = vim.fn.getcwd() .. "/"
 	end
 
 	path = vim.fn.simplify(path)
+	if not vim.endswith(path, "/") then
+		path = path .. "/"
+	end
 	start_browse(path, "split")
 end, { force = true, nargs = "?" })
 
@@ -186,10 +198,13 @@ vim.api.nvim_create_user_command("VNavi", function(arg)
 	local path = arg.args
 	if path == "" or path == "." or path == "./" then
 		---@diagnostic disable-next-line
-		path = vim.fs.dirname(vim.fn.expand("%:p")) .. "/"
+		path = vim.fn.getcwd() .. "/"
 	end
 
 	path = vim.fn.simplify(path)
+	if not vim.endswith(path, "/") then
+		path = path .. "/"
+	end
 	start_browse(path, "vsplit")
 end, { force = true, nargs = "?" })
 
@@ -356,6 +371,8 @@ function M.readdir(path)
 			else
 				return a.name < b.name
 			end
+
+			return false
 		end)
 	end)
 
@@ -363,6 +380,10 @@ function M.readdir(path)
 		print(error)
 		print(string.format("fs.dir failed with path '%s'", path))
 		return {}
+	end
+
+	if #files == 0 then
+		print(string.format("empty file list for path %s", path))
 	end
 
 	return files
@@ -433,6 +454,9 @@ function M.set_keymaps(state)
 		vim.cmd("m'")
 		if vim.endswith(file_or_dir_name, "/") then
 			local to = vim.fn.simplify(state.cwd .. "/" .. file_or_dir_name)
+			if not vim.endswith(to, "/") then
+				to = to .. "/"
+			end
 			start_browse(to, "self")
 		else
 			edit_file(state.cwd, file_or_dir_name)
