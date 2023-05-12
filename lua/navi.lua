@@ -124,12 +124,19 @@ vim.api.nvim_create_autocmd("CursorMoved", {
 	end,
 })
 
+local function normalize(path)
+	local p = vim.fn.simplify(path)
+	p = p.gsub(p, "%$", "\\%$")
+	return p
+end
+
 local function get_name(path)
 	if not vim.endswith(path, "/") then
 		path = path .. "/"
 	end
 
 	path = string.sub(path, 1, -2)
+	path = normalize(path)
 	return string.format("navi:/%s", path)
 end
 
@@ -394,7 +401,7 @@ function M.change_dir(dirpath)
 end
 
 local function edit_file(base, filename)
-	local path = vim.fn.simplify(base .. "/" .. filename)
+	local path = normalize(base .. "/" .. filename)
 	vim.cmd(string.format("e %s", path))
 end
 
@@ -517,8 +524,8 @@ function State:add_change(line, change)
 end
 
 local function rename_file(state, change)
-	local old_path = vim.fn.simplify(state.cwd .. "/" .. change.old)
-	local new_path = vim.fn.simplify(state.cwd .. "/" .. change.new)
+	local old_path = normalize(state.cwd .. "/" .. change.old)
+	local new_path = normalize(state.cwd .. "/" .. change.new)
 
 	if old_path == new_path then
 		return
@@ -532,16 +539,15 @@ local function create_file(state, filename)
 		return
 	end
 
-	local path = state.cwd .. "/" .. filename
-	path = vim.fn.simplify(path)
+	local path = normalize(state.cwd .. "/" .. filename)
 
 	io.popen(string.format("touch %s", path))
 end
 
 local function copy_file(source, destination)
 	local flag = ""
-	source = vim.fn.simplify(source)
-	destination = vim.fn.simplify(destination)
+	source = normalize(source)
+	destination = normalize(destination)
 
 	if vim.endswith(source, "/") then
 		flag = "-R"
@@ -551,15 +557,16 @@ local function copy_file(source, destination)
 end
 
 local function move_file(source, destination)
-	source = vim.fn.simplify(source)
-	destination = vim.fn.simplify(destination)
+	source = normalize(source)
+	destination = normalize(destination)
+	print(source .. " -> " .. destination)
 
 	io.popen(string.format("mv %s %s", source, destination))
 end
 
 local function create_directory(state, dirname)
 	local path = state.cwd .. "/" .. string.sub(dirname, 0, -2)
-	path = vim.fn.simplify(path)
+	path = normalize(path)
 
 	io.popen(string.format("mkdir %s", path))
 end
@@ -569,7 +576,7 @@ local function remove_file(state, filename)
 		return
 	end
 
-	filename = vim.fn.simplify(filename)
+	filename = normalize(filename)
 
 	local flag = ""
 	if vim.endswith(filename, "/") then
