@@ -61,8 +61,8 @@ function State:new(cwd)
 		buf = nil,
 		cwd = cwd,
 		files = {
-			{ name = "..", type = "directory" },
-			{ name = ".", type = "directory" },
+			-- { name = "..", type = "directory" },
+			-- { name = ".", type = "directory" },
 		},
 		changes = {},
 	}
@@ -96,11 +96,16 @@ vim.api.nvim_create_autocmd("VimEnter", {
 	end,
 })
 
-vim.api.nvim_create_autocmd("BufEnter", {
+vim.api.nvim_create_autocmd({
+	"BufEnter",
+}, {
 	pattern = "*",
 	group = group,
 	callback = function(args)
 		local path = args.match
+		if path and vim.startswith(path, "navi:/") then
+			path = string.gsub(path, "navi:/", "")
+		end
 		if path and vim.fn.isdirectory(path) == 1 then
 			local ok, err = pcall(vim.cmd, string.format("Navi %s", path))
 			if not ok then
@@ -265,9 +270,15 @@ function M.render(state, reset_cursor)
 	local buf = state.buf
 	local win = state.win or 0
 	local pos = { 1, 0 }
+	local current_line_content
 	if not reset_cursor then
-		pcall(vim.api.nvim_win_get_cursor, win)
+		local ok, position = pcall(vim.api.nvim_win_get_cursor, win)
+		if ok then
+			pos = position
+		end
 	end
+	current_line_content =
+		vim.api.nvim_buf_get_lines(buf, pos[1] - 1, pos[1], false)[1]
 
 	clear(buf)
 
@@ -275,6 +286,15 @@ function M.render(state, reset_cursor)
 	for _, node in ipairs(state.files) do
 		local line = Line({ file = node })
 		table.insert(lines, line)
+	end
+
+	local new_line
+	for idx, line in ipairs(lines) do
+		if line == current_line_content then
+			pos[1] = idx
+			new_line = line
+			break
+		end
 	end
 
 	vim.api.nvim_buf_set_lines(buf, 0, -1, false, lines)
@@ -360,14 +380,13 @@ local function dir(path)
 end
 
 function M.readdir(path)
-	local files = {
-		-- { name = "..", type = "directory" },
-		-- { name = ".", type = "directory" },
-	}
+	local files = {}
 
 	local success, error = pcall(function()
 		for file, type in dir(path) do
-			table.insert(files, { name = file, type = type })
+			if file ~= "." and file ~= ".." then
+				table.insert(files, { name = file, type = type })
+			end
 		end
 
 		table.sort(files, function(a, b)
@@ -449,7 +468,7 @@ function M.set_keymaps(state)
 		start_browse(parent, "self")
 	end, { buffer = buf })
 
-	vim.keymap.set("i", "<cr>", "", { buffer = buf })
+	vim.keymap.set("i", "<cr>", "<esc>", { buffer = buf })
 	vim.keymap.set("n", "<cr>", function()
 		local line = vim.api.nvim_win_get_cursor(0)[1]
 		local c = vim.api.nvim_buf_get_lines(0, line - 1, line, false)
@@ -821,16 +840,16 @@ function M.attach_listeners(state)
 		M.render(state)
 	end, { buffer = 0 })
 
-	vim.keymap.set("n", "x", function()
-		M.set_mode("move")
-		vim.api.nvim_set_option("operatorfunc", "v:lua.navi_yank_motion")
-		return "g@"
-	end, {
-		buffer = 0,
-		silent = true,
-		expr = true,
-		noremap = true,
-	})
+	-- vim.keymap.set("n", "x", function()
+	-- 	M.set_mode("move")
+	-- 	vim.api.nvim_set_option("operatorfunc", "v:lua.navi_yank_motion")
+	-- 	return "g@"
+	-- end, {
+	-- 	buffer = 0,
+	-- 	silent = true,
+	-- 	expr = true,
+	-- 	noremap = true,
+	-- })
 
 	vim.keymap.set("x", "x", function()
 		M.set_mode("move")
