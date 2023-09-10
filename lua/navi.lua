@@ -420,7 +420,10 @@ function M.change_dir(dirpath)
 end
 
 local function edit_file(base, filename)
-	local path = normalize(base .. "/" .. filename)
+	local path = base
+	if filename ~= nil then
+		path = normalize(base .. "/" .. filename)
+	end
 	vim.cmd(string.format("e %s", path))
 end
 
@@ -563,6 +566,35 @@ local function create_file(state, filename)
 	io.popen(string.format("touch '%s'", path))
 end
 
+local function get_filename(path)
+	return vim.fn.fnamemodify(path, ":r")
+end
+
+local function get_extension(path)
+	return vim.fn.fnamemodify(path, ":e")
+end
+
+local function prevent_overwrite(destination)
+	-- avoid overwriting existing files
+	-- by appending (n) at the end
+	-- @todo should take extension into account
+	local dest = destination
+	local counter = 1
+	local exists = vim.fn.filereadable(dest)
+
+	while exists ~= 0 do
+		local root = get_filename(destination)
+		local ext = get_extension(destination)
+		local renamed = string.format("%s (%d).%s", root, counter, ext)
+
+		dest = renamed
+		counter = counter + 1
+		exists = vim.fn.filereadable(dest)
+	end
+
+	return dest
+end
+
 local function copy_file(source, destination)
 	local flag = ""
 	source = normalize(source)
@@ -570,6 +602,7 @@ local function copy_file(source, destination)
 
 	-- avoid uselses operation
 	if source == destination then
+		vim.print("source and destination are the same")
 		return
 	end
 
@@ -577,15 +610,8 @@ local function copy_file(source, destination)
 		flag = "-R"
 	end
 
-	-- avoid overwriting existing files
-	-- by appending (n) at the end
-	-- @todo should take extension into account
-	local dest = destination
-	local counter = 1
-	while vim.fn.filereadable(dest) do
-		dest = destination .. " (" .. counter .. ")"
-		counter = counter + 1
-	end
+	local dest = prevent_overwrite(destination)
+	vim.print(string.format("cp '%s' to '%s'", source, dest))
 
 	io.popen(string.format("cp %s '%s' '%s'", flag, source, dest))
 end
@@ -594,15 +620,11 @@ local function move_file(source, destination)
 	source = normalize(source)
 	destination = normalize(destination)
 
-	-- avoid overwriting existing files
-	-- by appending (n) at the end
-	-- @todo should take extension into account
-	local dest = destination
-	local counter = 1
-	while vim.fn.filereadable(dest) do
-		dest = destination .. " (" .. counter .. ")"
-		counter = counter + 1
+	if source == destination then
+		return
 	end
+
+	destination = prevent_overwrite(destination)
 
 	io.popen(string.format("mv '%s' '%s'", source, destination))
 end
@@ -616,6 +638,10 @@ end
 
 local function remove_file(state, filename)
 	if filename == "" then
+		return
+	end
+	vim.print(string.format("rm '%s'", filename))
+	if not vim.fn.filereadable(filename) then
 		return
 	end
 
@@ -633,8 +659,8 @@ local function remove_file(state, filename)
 			1
 		) == 1
 	then
-		local path = state.cwd .. "/" .. filename
-		io.popen(string.format("rm '%s' '%s'", flag, path))
+		local path = normalize(state.cwd .. "/" .. filename)
+		io.popen(string.format("rm %s '%s'", flag, path))
 	end
 end
 
@@ -651,12 +677,21 @@ function State:apply_changes()
 		then
 			rename_file(self, change)
 		end
+		if
+			change.mode == "rename"
+			and change.old == nil
+			and change.new ~= nil
+		then
+			change.mode = "touch"
+		end
 
 		if change.mode == "touch" and change.new ~= nil then
 			if vim.endswith(change.new, "/") then
 				create_directory(self, change.new)
+				start_browse(change.new, "self")
 			else
 				create_file(self, change.new)
+				edit_file(change.new)
 			end
 		end
 
@@ -676,6 +711,7 @@ end
 
 local function listener(state, first_line, last_line, last_line_updated)
 	if state.rendering then
+		vim.print("rendering")
 		return
 	end
 
@@ -915,7 +951,12 @@ function M.attach_listeners(state)
 		for line, yank in pairs(M.yanks) do
 			if yank.register == register then
 				if yank.mode == "copy" then
-					copy_file(yank.path, state.cwd)
+					copy_file(
+						yank.path,
+						normalize(
+							state.cwd .. "/" .. vim.fs.basename(yank.path)
+						)
+					)
 				end
 				if yank.mode == "move" then
 					local new = state.cwd .. "/" .. vim.fs.basename(yank.path)
