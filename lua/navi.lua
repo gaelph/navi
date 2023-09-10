@@ -351,7 +351,7 @@ end
 
 local function dir(path)
 	local i, t, popen = 0, {}, io.popen
-	local pfile = popen(string.format("ls -a '%d'", path))
+	local pfile = popen(string.format("ls -a '%s'", path))
 	if pfile == nil then
 		vim.notify("Error reading " .. path)
 		return t
