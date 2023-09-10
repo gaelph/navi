@@ -351,7 +351,7 @@ end
 
 local function dir(path)
 	local i, t, popen = 0, {}, io.popen
-	local pfile = popen('ls -a "' .. path .. '"')
+	local pfile = popen(string.format("ls -a '%d'", path)
 	if pfile == nil then
 		vim.notify("Error reading " .. path)
 		return t
@@ -550,7 +550,7 @@ local function rename_file(state, change)
 		return
 	end
 
-	io.popen(string.format("mv %s %s", old_path, new_path))
+	io.popen(string.format("mv '%s' '%s'", old_path, new_path))
 end
 
 local function create_file(state, filename)
@@ -560,7 +560,7 @@ local function create_file(state, filename)
 
 	local path = normalize(state.cwd .. "/" .. filename)
 
-	io.popen(string.format("touch %s", path))
+	io.popen(string.format("touch '%s'", path))
 end
 
 local function copy_file(source, destination)
@@ -568,26 +568,50 @@ local function copy_file(source, destination)
 	source = normalize(source)
 	destination = normalize(destination)
 
+	-- avoid uselses operation
+	if source == destination then
+		return
+	end
+
 	if vim.endswith(source, "/") then
 		flag = "-R"
 	end
 
-	io.popen(string.format("cp %s %s %s", flag, source, destination))
+	-- avoid overwriting existing files
+	-- by appending (n) at the end
+	-- @todo should take extension into account
+	local dest = destination
+	local counter = 1
+	while vim.fn.filereadable(dest) do
+		dest = destination .. " (" .. counter .. ")"
+		counter = counter + 1
+	end
+
+	io.popen(string.format("cp %s '%s' '%s'", flag, source, dest))
 end
 
 local function move_file(source, destination)
 	source = normalize(source)
 	destination = normalize(destination)
-	print(source .. " -> " .. destination)
 
-	io.popen(string.format("mv %s %s", source, destination))
+	-- avoid overwriting existing files
+	-- by appending (n) at the end
+	-- @todo should take extension into account
+	local dest = destination
+	local counter = 1
+	while vim.fn.filereadable(dest) do
+		dest = destination .. " (" .. counter .. ")"
+		counter = counter + 1
+	end
+
+	io.popen(string.format("mv '%s' '%s'", source, destination))
 end
 
 local function create_directory(state, dirname)
 	local path = state.cwd .. "/" .. string.sub(dirname, 0, -2)
 	path = normalize(path)
 
-	io.popen(string.format("mkdir %s", path))
+	io.popen(string.format("mkdir '%s'", path))
 end
 
 local function remove_file(state, filename)
@@ -610,7 +634,7 @@ local function remove_file(state, filename)
 		) == 1
 	then
 		local path = state.cwd .. "/" .. filename
-		io.popen(string.format("rm %s %s", flag, path))
+		io.popen(string.format("rm '%s' '%s'", flag, path))
 	end
 end
 
