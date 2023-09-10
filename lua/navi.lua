@@ -874,7 +874,7 @@ function M.attach_listeners(state)
 		for i, line in ipairs(lines) do
 			local yank = {
 				line = i + line_start - 2,
-				path = state.cwd .. "/" .. line,
+				path = normalize(state.cwd .. "/" .. line),
 			}
 			M.add_yank(yank.line, yank.path, vim.v.register)
 		end
@@ -892,7 +892,7 @@ function M.attach_listeners(state)
 		local last = initial + count + 1
 		local lines = vim.api.nvim_buf_get_lines(0, initial, last, false)
 		for i, basename in ipairs(lines) do
-			local path = state.cwd .. "/" .. basename
+			local path = normalize(state.cwd .. "/" .. basename)
 			local line = initial + i - 1
 
 			M.add_yank(line, path, vim.v.register)
@@ -920,7 +920,7 @@ function M.attach_listeners(state)
 		for i, line in ipairs(lines) do
 			local yank = {
 				line = i + line_start - 2,
-				path = state.cwd .. "/" .. line,
+				path = normalize(state.cwd .. "/" .. line),
 			}
 			M.add_yank(yank.line, yank.path, vim.v.register)
 		end
@@ -935,7 +935,7 @@ function M.attach_listeners(state)
 		local pos = vim.api.nvim_win_get_cursor(0)
 		local lines = vim.api.nvim_buf_get_lines(0, pos[1] - 1, pos[1], false)
 		local line = lines[1]
-		local path = state.cwd .. "/" .. line
+		local path = normalize(state.cwd .. "/" .. line)
 
 		M.add_yank(pos[1] - 1, path, vim.v.register)
 		M.render(state)
