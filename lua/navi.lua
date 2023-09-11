@@ -691,7 +691,7 @@ function State:apply_changes()
 				start_browse(change.new, "self")
 			else
 				create_file(self, change.new)
-				edit_file(change.new)
+				edit_file(self.cwd, change.new)
 			end
 		end
 
