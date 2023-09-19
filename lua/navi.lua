@@ -553,7 +553,15 @@ local function rename_file(state, change)
 		return
 	end
 
-	io.popen(string.format("mv '%s' '%s'", old_path, new_path))
+	if
+		vim.fn.confirm(
+			string.format("Confirm rename of %s to %s?", change.old, change.new),
+			"&Yes\n&No",
+			1
+		) == 1
+	then
+		io.popen(string.format("mv '%s' '%s'", old_path, new_path))
+	end
 end
 
 local function create_file(state, filename)
