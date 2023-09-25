@@ -696,7 +696,7 @@ function State:apply_changes()
 		if change.mode == "touch" and change.new ~= nil then
 			if vim.endswith(change.new, "/") then
 				create_directory(self, change.new)
-				start_browse(change.new, "self")
+				start_browse(self.cwd .. "/" .. change.new, "self")
 			else
 				create_file(self, change.new)
 				edit_file(self.cwd, change.new)
