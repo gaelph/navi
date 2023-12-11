@@ -103,9 +103,12 @@ vim.api.nvim_create_autocmd({
 	group = group,
 	callback = function(args)
 		local path = args.match
-		if path and vim.startswith(path, "navi:/") then
-			path = string.gsub(path, "navi:/", "")
+		local buf = args.buf
+		local ft = vim.api.nvim_buf_get_option(buf, "filetype")
+		if ft == "NAVI" then
+			return
 		end
+
 		if path and vim.fn.isdirectory(path) == 1 then
 			local ok, err = pcall(vim.cmd, string.format("Navi %s", path))
 			if not ok then
@@ -115,17 +118,23 @@ vim.api.nvim_create_autocmd({
 	end,
 })
 
-vim.api.nvim_create_autocmd("CursorMoved", {
-	pattern = "navi:/*",
+vim.api.nvim_create_autocmd("FileType", {
+	pattern = "navi",
 	group = group,
 	callback = function(arg)
 		local buf = arg.buf
-		local state = M.repo[buf]
+		vim.api.nvim_create_autocmd("CursorMoved", {
+			group = group,
+			buffer = arg.buf,
+			callback = function()
+				local state = M.repo[buf]
 
-		if state then
-			local pos = vim.api.nvim_win_get_cursor(0)
-			state.last_pos = pos
-		end
+				if state then
+					local pos = vim.api.nvim_win_get_cursor(0)
+					state.last_pos = pos
+				end
+			end,
+		})
 	end,
 })
 
@@ -140,9 +149,8 @@ local function get_name(path)
 		path = path .. "/"
 	end
 
-	path = string.sub(path, 1, -2)
 	path = normalize(path)
-	return string.format("navi:/%s", path)
+	return path
 end
 
 local function on_dir_changed(cwd, buf)
@@ -152,6 +160,10 @@ local function on_dir_changed(cwd, buf)
 		return
 	end
 	local state = M.repo[buffer]
+
+	if not vim.endswith(cwd, "/") then
+		cwd = cwd .. "/"
+	end
 
 	state.cwd = cwd
 	state.files = M.readdir(cwd)
@@ -325,7 +337,7 @@ function _G.navi_yank_motion(arg)
 		local line_number_end = vim.fn.getpos("']")[2]
 
 		for i = line_number_start - 1, line_number_end - 1 do
-			local path = state.cwd .. "/" .. state.files[i].name
+			local path = state.cwd .. state.files[i].name
 			M.add_yank(i, path, M.yank_register)
 		end
 
@@ -422,9 +434,11 @@ end
 local function edit_file(base, filename)
 	local path = base
 	if filename ~= nil then
-		path = normalize(base .. "/" .. filename)
+		path = normalize(base .. filename)
 	end
-	vim.cmd(string.format("e %s", path))
+	vim.defer_fn(function()
+		vim.cmd(string.format("e %s", path))
+	end, 150)
 end
 
 local function get_buffer(name)
@@ -432,8 +446,12 @@ local function get_buffer(name)
 	local oname = name
 	for _, buffer in ipairs(buffers) do
 		local bname = vim.api.nvim_buf_get_name(buffer)
-		if bname == oname then
-			return buffer
+		local btype = vim.api.nvim_buf_get_option(buffer, "filetype")
+		if btype == "NAVI" then
+			bname = bname .. "/"
+			if bname == oname then
+				return buffer
+			end
 		end
 	end
 
@@ -465,8 +483,9 @@ function M.set_keymaps(state)
 	local buf = state.buf
 
 	vim.keymap.set("n", "-", function()
-		local c = vim.fn.expand("%:p"):gsub("navi:/", "")
+		local c = vim.fn.expand("%:p"):sub(1, -2)
 		local parent = vim.fs.dirname(c) .. "/"
+
 		vim.cmd("m'")
 		start_browse(parent, "self")
 	end, { buffer = buf })
@@ -482,7 +501,7 @@ function M.set_keymaps(state)
 
 		vim.cmd("m'")
 		if vim.endswith(file_or_dir_name, "/") then
-			local to = vim.fn.simplify(state.cwd .. "/" .. file_or_dir_name)
+			local to = vim.fn.simplify(state.cwd .. file_or_dir_name)
 			if not vim.endswith(to, "/") then
 				to = to .. "/"
 			end
@@ -546,8 +565,8 @@ function State:add_change(line, change)
 end
 
 local function rename_file(state, change)
-	local old_path = normalize(state.cwd .. "/" .. change.old)
-	local new_path = normalize(state.cwd .. "/" .. change.new)
+	local old_path = normalize(state.cwd .. change.old)
+	local new_path = normalize(state.cwd .. change.new)
 
 	if old_path == new_path then
 		return
@@ -569,7 +588,7 @@ local function create_file(state, filename)
 		return
 	end
 
-	local path = normalize(state.cwd .. "/" .. filename)
+	local path = normalize(state.cwd .. filename)
 
 	io.popen(string.format("touch '%s'", path))
 end
@@ -639,7 +658,7 @@ local function move_file(source, destination)
 end
 
 local function create_directory(state, dirname)
-	local path = state.cwd .. "/" .. string.sub(dirname, 0, -2)
+	local path = state.cwd .. string.sub(dirname, 0, -2)
 	path = normalize(path)
 
 	io.popen(string.format("mkdir '%s'", path))
@@ -668,7 +687,7 @@ local function remove_file(state, filename)
 			1
 		) == 1
 	then
-		local path = normalize(state.cwd .. "/" .. filename)
+		local path = normalize(state.cwd .. filename)
 		io.popen(string.format("rm %s '%s'", flag, path))
 	end
 end
@@ -697,7 +716,7 @@ function State:apply_changes()
 		if change.mode == "touch" and change.new ~= nil then
 			if vim.endswith(change.new, "/") then
 				create_directory(self, change.new)
-				start_browse(self.cwd .. "/" .. change.new, "self")
+				start_browse(self.cwd .. change.new, "self")
 			else
 				create_file(self, change.new)
 				edit_file(self.cwd, change.new)
@@ -706,6 +725,17 @@ function State:apply_changes()
 
 		if change.mode == "rm" then
 			remove_file(self, change.old)
+			for _, buf in ipairs(vim.api.nvim_list_bufs()) do
+				local bufname = vim.api.nvim_buf_get_name(buf)
+				local buftype = vim.api.nvim_buf_get_option(buf, "filetype")
+				if buftype == "NAVI" then
+					bufname = bufname .. "/"
+				end
+
+				if bufname == self.cwd .. change.old then
+					vim.api.nvim_buf_delete(buf, { force = true })
+				end
+			end
 		end
 	end
 
@@ -883,7 +913,7 @@ function M.attach_listeners(state)
 		for i, line in ipairs(lines) do
 			local yank = {
 				line = i + line_start - 2,
-				path = normalize(state.cwd .. "/" .. line),
+				path = normalize(state.cwd .. line),
 			}
 			M.add_yank(yank.line, yank.path, vim.v.register)
 		end
@@ -901,7 +931,7 @@ function M.attach_listeners(state)
 		local last = initial + count + 1
 		local lines = vim.api.nvim_buf_get_lines(0, initial, last, false)
 		for i, basename in ipairs(lines) do
-			local path = normalize(state.cwd .. "/" .. basename)
+			local path = normalize(state.cwd .. basename)
 			local line = initial + i - 1
 
 			M.add_yank(line, path, vim.v.register)
@@ -929,7 +959,7 @@ function M.attach_listeners(state)
 		for i, line in ipairs(lines) do
 			local yank = {
 				line = i + line_start - 2,
-				path = normalize(state.cwd .. "/" .. line),
+				path = normalize(state.cwd .. line),
 			}
 			M.add_yank(yank.line, yank.path, vim.v.register)
 		end
@@ -944,7 +974,7 @@ function M.attach_listeners(state)
 		local pos = vim.api.nvim_win_get_cursor(0)
 		local lines = vim.api.nvim_buf_get_lines(0, pos[1] - 1, pos[1], false)
 		local line = lines[1]
-		local path = normalize(state.cwd .. "/" .. line)
+		local path = normalize(state.cwd .. line)
 
 		M.add_yank(pos[1] - 1, path, vim.v.register)
 		M.render(state)
@@ -962,13 +992,11 @@ function M.attach_listeners(state)
 				if yank.mode == "copy" then
 					copy_file(
 						yank.path,
-						normalize(
-							state.cwd .. "/" .. vim.fs.basename(yank.path)
-						)
+						normalize(state.cwd .. vim.fs.basename(yank.path))
 					)
 				end
 				if yank.mode == "move" then
-					local new = state.cwd .. "/" .. vim.fs.basename(yank.path)
+					local new = state.cwd .. vim.fs.basename(yank.path)
 					move_file(yank.path, new)
 				end
 			end
