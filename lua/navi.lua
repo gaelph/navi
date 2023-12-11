@@ -616,6 +616,7 @@ local function copy_file(source, destination)
 
 	if vim.endswith(source, "/") then
 		flag = "-R"
+		source = source:sub(1, -2) -- remove the trailing / for copy folder
 	end
 
 	local dest = prevent_overwrite(destination)
