@@ -490,7 +490,25 @@ function M.set_keymaps(state)
 		start_browse(parent, "self")
 	end, { buffer = buf })
 
-	vim.keymap.set("i", "<cr>", "<esc>", { buffer = buf })
+	vim.keymap.set("i", "<cr>", function()
+		local line = vim.api.nvim_win_get_cursor(0)[1]
+		local c = vim.api.nvim_buf_get_lines(0, line - 1, line, false)
+		if #c == 0 then
+			return
+		end
+		local file_or_dir_name = c[1]
+
+		vim.cmd("m'")
+		if vim.endswith(file_or_dir_name, "/") then
+			_G.__navi_create_directory(state, file_or_dir_name)
+			local to = vim.fn.simplify(state.cwd .. file_or_dir_name)
+			start_browse(to, "self")
+		else
+			_G.__navi_create_file(state, file_or_dir_name)
+			edit_file(state.cwd, file_or_dir_name)
+		end
+	end, { buffer = buf })
+
 	vim.keymap.set("n", "<cr>", function()
 		local line = vim.api.nvim_win_get_cursor(0)[1]
 		local c = vim.api.nvim_buf_get_lines(0, line - 1, line, false)
@@ -591,7 +609,9 @@ local function create_file(state, filename)
 	local path = normalize(state.cwd .. filename)
 
 	io.popen(string.format("touch '%s'", path))
+	vim.cmd("stopinsert")
 end
+_G.__navi_create_file = create_file
 
 local function get_filename(path)
 	return vim.fn.fnamemodify(path, ":r")
@@ -663,6 +683,7 @@ local function create_directory(state, dirname)
 
 	io.popen(string.format("mkdir '%s'", path))
 end
+_G.__navi_create_directory = create_directory
 
 local function remove_file(state, filename)
 	if filename == "" then
@@ -716,10 +737,10 @@ function State:apply_changes()
 		if change.mode == "touch" and change.new ~= nil then
 			if vim.endswith(change.new, "/") then
 				create_directory(self, change.new)
-				start_browse(self.cwd .. change.new, "self")
+				-- start_browse(self.cwd .. change.new, "self")
 			else
 				create_file(self, change.new)
-				edit_file(self.cwd, change.new)
+				-- edit_file(self.cwd, change.new)
 			end
 		end
 
